@@ -1356,9 +1356,9 @@ end
 -- 主窗口
 -- ============================================================
 local Window = WindUI:CreateWindow({
-    Title = "龙卷",
+    Title = "龙卷脚本",
     Icon = "door-open",
-    Author = "CypTec",
+    Author = "作者CypTec",
     Folder = "LongJuan",
     Size = UDim2.fromOffset(580, 460),
     Transparent = true,
@@ -1420,7 +1420,6 @@ local Tabs = {
     Interact   = Window:Tab({ Title = "互动",       Icon = "zap" }),
     Light      = Window:Tab({ Title = "滤镜与光影", Icon = "sun" }),
     Night      = Window:Tab({ Title = "夜视",       Icon = "moon" }),
-    FE         = Window:Tab({ Title = "FE",         Icon = "code" }),
     Fun        = Window:Tab({ Title = "娱乐",       Icon = "gamepad-2" }),
     Music      = Window:Tab({ Title = "音乐",       Icon = "music" }),
     Animation  = Window:Tab({ Title = "动画",       Icon = "star" }),
