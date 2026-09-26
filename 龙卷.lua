@@ -1803,102 +1803,312 @@ Tabs.Common:Toggle({
 
 
 -- ============================================================
--- ⭐ 透视标签页（11 个控件必须显示）
+-- ⭐ 透视标签页（夜脚本高清版缝合）
 -- ============================================================
--- 空表兜底：即使 ESP 加载失败，控件也全部创建
-local playerESP = {}
+Tabs.Visual:Paragraph({
+    Title = "提示",
+    Desc = "旧版互动少但中文，新版更多但英文"
+})
 
--- 静默加载：成功就把函数合并进 playerESP，失败也不报错
-pcall(function()
-    local espFuncs = loadstring(game:HttpGet("https://raw.githubusercontent.com/Xingtaiduan/Script/main/ESP.lua"))()
-    if type(espFuncs) == "table" then
-        for k, v in pairs(espFuncs) do
-            playerESP[k] = v
+-- ================= 【第一类：玩家透视】变量与逻辑 =================
+local PLAYER_ESP = {
+    Enabled = false, HighlightEnabled = false, BoxEnabled = false,
+    TeamCheck = false, ShowName = false, ShowHealth = false, ShowDist = false
+}
+
+local function ClearPlayerESP()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name == "PlayerESP_Highlight" or obj.Name == "PlayerESP_Info" or obj.Name == "PlayerESP_Box" then
+            obj:Destroy()
         end
+    end
+end
+
+local function UpdatePlayerESP()
+    if not PLAYER_ESP.Enabled then return end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local char = p.Character
+            local hum = char:FindFirstChild("Humanoid")
+            local head = char:FindFirstChild("Head")
+            local root = char:FindFirstChild("HumanoidRootPart")
+
+            if hum and head and root and hum.Health > -500 then
+                local isTeam = (p.Team == LocalPlayer.Team)
+                local filtered = PLAYER_ESP.TeamCheck and isTeam
+                local color = p.TeamColor.Color
+
+                -- 高亮
+                local high = char:FindFirstChild("PlayerESP_Highlight")
+                if PLAYER_ESP.HighlightEnabled then
+                    if not high then
+                        high = Instance.new("Highlight", char)
+                        high.Name = "PlayerESP_Highlight"
+                    end
+                    high.FillColor = color
+                    high.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                elseif high then
+                    high:Destroy()
+                end
+
+                -- 方框
+                local box = char:FindFirstChild("PlayerESP_Box")
+                if PLAYER_ESP.BoxEnabled and not filtered then
+                    if not box then
+                        box = Instance.new("BillboardGui", char)
+                        box.Name = "PlayerESP_Box"
+                        box.Size = UDim2.new(4.5,0,6,0)
+                        box.AlwaysOnTop = true
+                        box.Adornee = root
+                        local f = Instance.new("Frame", box)
+                        f.Size = UDim2.new(1,0,1,0)
+                        f.BackgroundTransparency = 1
+                        local s = Instance.new("UIStroke", f)
+                        s.Thickness = 1.5
+                    end
+                    box.Frame.UIStroke.Color = color
+                elseif box then
+                    box:Destroy()
+                end
+
+                -- 信息
+                local info = char:FindFirstChild("PlayerESP_Info")
+                if not filtered then
+                    if not info then
+                        info = Instance.new("BillboardGui", char)
+                        info.Name = "PlayerESP_Info"
+                        info.Size = UDim2.new(0,200,0,50)
+                        info.AlwaysOnTop = true
+                        info.Adornee = head
+                        info.ExtentsOffset = Vector3.new(0,3.5,0)
+                        local txt = Instance.new("TextLabel", info)
+                        txt.Name = "Label"
+                        txt.Size = UDim2.new(1,0,1,0)
+                        txt.BackgroundTransparency = 1
+                        txt.RichText = true
+                        txt.TextStrokeTransparency = 0.5
+                        txt.Font = Enum.Font.GothamMedium
+                    end
+                    local text = ""
+                    if PLAYER_ESP.ShowName then
+                        text = "<font color='#ffffff'><b>"..p.DisplayName.."</b></font>\n"
+                    end
+                    if PLAYER_ESP.ShowHealth then
+                        local hp = math.floor(hum.Health)
+                        local hpColor = (hp > 50 and "#55ff55" or "#ff5555")
+                        text = text .. "<font color='"..hpColor.."'>HP: "..hp.."</font> "
+                    end
+                    if PLAYER_ESP.ShowDist then
+                        local dist = math.floor((Camera.CFrame.Position - root.Position).Magnitude)
+                        text = text .. "<font color='#ffffff'>| "..dist.."m</font>"
+                    end
+                    info.Label.Text = text
+                elseif info then
+                    info:Destroy()
+                end
+            end
+        end
+    end
+end
+
+-- ================= 【第二类：NPC透视】变量与逻辑 =================
+local NPCESP = { Enabled = false, Color = Color3.fromRGB(0,162,255), Highlights = {} }
+
+local function GetNPCPart(model)
+    if not model then return nil end
+    if model:FindFirstChild("HumanoidRootPart") then return model.HumanoidRootPart end
+    for _, part in pairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then return part end
+    end
+    return nil
+end
+
+local function AddNPCESP(model)
+    if not model or NPCESP.Highlights[model] then return end
+    if not model:FindFirstChildWhichIsA("Humanoid") then return end
+    if game.Players:GetPlayerFromCharacter(model) then return end
+    local part = GetNPCPart(model)
+    if not part then return end
+    
+    local h = Instance.new("Highlight")
+    h.Name = "NPCESP"
+    h.Adornee = model
+    h.FillColor = NPCESP.Color
+    h.OutlineColor = Color3.fromRGB(255,255,255)
+    h.FillTransparency = 0.4
+    h.OutlineTransparency = 0
+    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    h.Parent = game.CoreGui
+    NPCESP.Highlights[model] = h
+end
+
+local function RemoveNPCESP(model)
+    if NPCESP.Highlights[model] then
+        NPCESP.Highlights[model]:Destroy()
+        NPCESP.Highlights[model] = nil
+    end
+end
+
+local function ToggleNPCESP(state)
+    NPCESP.Enabled = state
+    if state then
+        task.spawn(function()
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("Model") then task.spawn(AddNPCESP, obj) end
+            end
+        end)
+        if not _G.NPCConn then
+            _G.NPCConn = workspace.DescendantAdded:Connect(function(child)
+                task.delay(0.5, function()
+                    if child:IsA("Model") then AddNPCESP(child) 
+                    elseif child:IsA("Humanoid") then AddNPCESP(child.Parent) end
+                end)
+            end)
+        end
+    else
+        for model, _ in pairs(NPCESP.Highlights) do RemoveNPCESP(model) end
+        if _G.NPCConn then _G.NPCConn:Disconnect() _G.NPCConn = nil end
+    end
+end
+
+-- ================= 【第三类：互动透视】变量与逻辑 =================
+-- 1. 旧版互动
+local InteractESP = { Enabled = false, Color = Color3.fromRGB(0,255,0), Highlights = {} }
+local function IsInteractive_Old(obj) return obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") end
+
+local function AddInteractESP(target)
+    if not target or InteractESP.Highlights[target] then return end
+    if not (target:IsA("BasePart") or target:IsA("Model")) then return end
+    local h = Instance.new("Highlight")
+    h.Name = "InteractESP"
+    h.Adornee = target
+    h.FillColor = InteractESP.Color
+    h.OutlineColor = Color3.fromRGB(255,255,255)
+    h.FillTransparency = 0.5
+    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    h.Parent = target
+    InteractESP.Highlights[target] = h
+end
+
+local function ToggleInteractESP(state)
+    InteractESP.Enabled = state
+    if state then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if IsInteractive_Old(obj) and obj.Parent then AddInteractESP(obj.Parent) end
+        end
+        if not _G.IntConn then
+            _G.IntConn = workspace.DescendantAdded:Connect(function(child)
+                task.delay(1, function()
+                    if child and IsInteractive_Old(child) and child.Parent then AddInteractESP(child.Parent) end
+                end)
+            end)
+        end
+    else
+        -- 👇 这里是修复后的代码：只销毁高亮，不销毁游戏实体 👇
+        for target, hl in pairs(InteractESP.Highlights) do
+            if hl then hl:Destroy() end
+            InteractESP.Highlights[target] = nil
+        end
+        -- 👆 修复结束 👆
+        InteractESP.Highlights = {}
+        if _G.IntConn then _G.IntConn:Disconnect() _G.IntConn = nil end
+    end
+end
+
+-- 2. 新版互动
+local NewInteractESP = { Enabled = false, Color = Color3.fromRGB(0,255,0), Highlights = {} }
+local function IsInteractive_New(o) return o and (o:IsA("ProximityPrompt") or o:IsA("ClickDetector")) end
+local function GetInteractiveTarget(node)
+    local p = node
+    while p do if p:IsA("BasePart") or p:IsA("Model") then return p end p = p.Parent end
+    return nil
+end
+
+local function AddNewInteractESP(target)
+    if not target or NewInteractESP.Highlights[target] then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "NewInteractESP"
+    hl.Adornee = target
+    hl.FillColor = NewInteractESP.Color
+    hl.OutlineColor = Color3.new(1,1,1)
+    hl.FillTransparency = .5
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = target
+    NewInteractESP.Highlights[target] = hl
+end
+
+local function ToggleNewInteractESP(state)
+    NewInteractESP.Enabled = state
+    if state then
+        task.spawn(function()
+            for _, v in ipairs(workspace:GetDescendants()) do
+                if IsInteractive_New(v) then
+                    local t = GetInteractiveTarget(v)
+                    if t then AddNewInteractESP(t) end
+                end
+            end
+        end)
+        if not _G.NewIntConn then
+            _G.NewIntConn = workspace.DescendantAdded:Connect(function(c)
+                task.delay(0.05, function()
+                    if c and c.GetDescendants then
+                        for _, d in pairs(c:GetDescendants()) do
+                            if IsInteractive_New(d) then
+                                local t = GetInteractiveTarget(d)
+                                if t then AddNewInteractESP(t) end
+                            end
+                        end
+                    end
+                end)
+            end)
+        end
+    else
+        for t, h in pairs(NewInteractESP.Highlights) do if h then h:Destroy() end end
+        NewInteractESP.Highlights = {}
+        if _G.NewIntConn then _G.NewIntConn:Disconnect() _G.NewIntConn = nil end
+    end
+end
+
+-- 主循环更新玩家透视
+RunService.RenderStepped:Connect(function()
+    if PLAYER_ESP.Enabled then
+        UpdatePlayerESP()
     end
 end)
 
-Tabs.Visual:Section({ Title = "玩家ESP设置" })
+-- ================= 【UI 控制面板】 =================
+Tabs.Visual:Toggle({ Title = "玩家透视 (总开关)", Default = false, Callback = function(v)
+    PLAYER_ESP.Enabled = v
+    if not v then ClearPlayerESP() end
+end })
+Tabs.Visual:Toggle({ Title = "玩家高亮", Default = false, Callback = function(v) PLAYER_ESP.HighlightEnabled = v end })
+Tabs.Visual:Toggle({ Title = "玩家方框", Default = false, Callback = function(v) PLAYER_ESP.BoxEnabled = v end })
+Tabs.Visual:Toggle({ Title = "显示名字", Default = false, Callback = function(v) PLAYER_ESP.ShowName = v end })
+Tabs.Visual:Toggle({ Title = "显示血量", Default = false, Callback = function(v) PLAYER_ESP.ShowHealth = v end })
+Tabs.Visual:Toggle({ Title = "显示距离", Default = false, Callback = function(v) PLAYER_ESP.ShowDist = v end })
+Tabs.Visual:Toggle({ Title = "玩家队伍检测", Default = false, Callback = function(v) PLAYER_ESP.TeamCheck = v end })
 
-Tabs.Visual:Toggle({
-    Title = "ESP开关", Default = false,
-    Callback = function(value) playerESP.Enabled = value end
-})
+Tabs.Visual:Toggle({ Title = "NPC透视", Default = false, Callback = function(v)
+    ToggleNPCESP(v)
+end })
 
-Tabs.Visual:Toggle({
-    Title = "显示名称", Default = true,
-    Callback = function(value) playerESP.ShowName = value end
-})
+Tabs.Visual:Toggle({ Title = "旧版互动透视", Default = false, Callback = function(v)
+    ToggleInteractESP(v)
+end })
 
-Tabs.Visual:Toggle({
-    Title = "显示方框", Default = false,
-    Callback = function(value) playerESP.ShowBox = value end
-})
+Tabs.Visual:Toggle({ Title = "新版互动透视", Default = false, Callback = function(v)
+    ToggleNewInteractESP(v)
+end })
 
-Tabs.Visual:Toggle({
-    Title = "显示血量", Default = false,
-    Callback = function(value) playerESP.ShowHealth = value end
-})
-
-Tabs.Visual:Toggle({
-    Title = "显示距离", Default = false,
-    Callback = function(value) playerESP.ShowDistance = value end
-})
-
-Tabs.Visual:Toggle({
-    Title = "显示射线", Default = false,
-    Callback = function(value) playerESP.ShowTracer = value end
-})
-
-Tabs.Visual:Toggle({
-    Title = "队伍颜色", Default = false,
-    Callback = function(value) playerESP.TeamCheck = value end
-})
-
-Tabs.Visual:Toggle({
-    Title = "穿墙显示", Default = false,
-    Callback = function(value) playerESP.WallCheck = value end
-})
-
-Tabs.Visual:Toggle({
-    Title = "队伍ESP", Default = false,
-    Callback = function(value) playerESP.TeamColor = value end
-})
-
-Tabs.Visual:Dropdown({
-    Title = "射线位置",
-    Values = {"上", "中", "下"},
-    Default = "上",
-    Callback = function(value)
-        if typeof(value) == "table" then value = value.Value or value[1] end
-        if value == "上" then playerESP.TracerPosition = "Top"
-        elseif value == "中" then playerESP.TracerPosition = "Middle"
-        elseif value == "下" then playerESP.TracerPosition = "Bottom"
-        end
-    end
-})
-
-Tabs.Visual:Slider({
-    Title = "射线粗细",
-    Value = { Min = 0, Max = 10, Default = 1 },
-    Increment = 1,
-    Callback = function(value) playerESP.TracerThickness = value end
-})
-
-Tabs.Visual:Button({
-    Title = "加载通用ESP",
-    Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Xingtaiduan/Script/main/Content/ESP-Universal"))()
-    end
-})
-
-Tabs.Visual:Button({
-    Title = "加载血量ESP",
-    Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Xingtaiduan/Script/refs/heads/main/Content/NameHealthESP.lua"))()
-    end
-})
-
+Tabs.Visual:Button({ Title = "刷新新版ESP", Callback = function()
+    ToggleNewInteractESP(false)
+    task.wait(0.2)
+    ToggleNewInteractESP(true)
+end })
+-- ============================================================
+-- ⭐ 透视结束
+-- ============================================================
 
 -- ============================================================
 -- ⭐ 甩飞标签页
