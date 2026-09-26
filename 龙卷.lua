@@ -535,18 +535,7 @@ end
 task.wait(0.6)
 if snowConn then snowConn:Disconnect() end
 LoadingGui:Destroy()
--- ============================================================
--- 加载 WindUI
--- ============================================================
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
-WindUI:AddTheme({
-    Name        = "GreenHairTheme",
-    Accent      = "2E4A3D",
-    Outline     = "3A6B4D",
-    Text        = "FFFFFF",
-    Placeholder = "A3D9B6",
-})
 -- ============================================================
 -- 基础服务
 -- ============================================================
