@@ -1,7 +1,8 @@
 -- ============================================================
--- 加载动画
+-- 加载界面（无色液态玻璃 + 淡蓝点缀 + 大雪 + 动态模糊）
 -- ============================================================
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local LoadingGui = Instance.new("ScreenGui")
 LoadingGui.Name = "LoadingScreen"
@@ -11,85 +12,457 @@ LoadingGui.DisplayOrder = 999999
 LoadingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 LoadingGui.Parent = game:GetService("CoreGui")
 
-local Dim = Instance.new("Frame")
-Dim.Size = UDim2.new(1, 0, 1, 0)
-Dim.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-Dim.BackgroundTransparency = 0.6
-Dim.BorderSizePixel = 0
-Dim.ZIndex = 1
-Dim.Parent = LoadingGui
+-- ===== 背景动态模糊 =====
+local BlurEffect = Instance.new("BlurEffect")
+BlurEffect.Size = 0
+BlurEffect.Parent = game:GetService("Lighting")
+TweenService:Create(BlurEffect, TweenInfo.new(0.5, Enum.EasingStyle.Quad), { Size = 26 }):Play()
+
+-- ===== 雪花层（前 + 后两层，大雪效果） =====
+local SnowBack = Instance.new("Frame")
+SnowBack.Size = UDim2.new(1, 0, 1, 0)
+SnowBack.BackgroundTransparency = 1
+SnowBack.ZIndex = 2
+SnowBack.Parent = LoadingGui
+
+local SnowFront = Instance.new("Frame")
+SnowFront.Size = UDim2.new(1, 0, 1, 0)
+SnowFront.BackgroundTransparency = 1
+SnowFront.ZIndex = 10
+SnowFront.Parent = LoadingGui
+
+local snowflakes = {}
+local function createSnow(parent, count, sizeRange, transRange, speedRange, zIndex)
+    for i = 1, count do
+        local size = math.random(sizeRange[1], sizeRange[2])
+        local flake = Instance.new("Frame")
+        flake.Size = UDim2.new(0, size, 0, size)
+        local startX = math.random()
+        flake.Position = UDim2.new(startX, 0, math.random(-100, 0) / 100, 0)
+        flake.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        flake.BackgroundTransparency = math.random(transRange[1], transRange[2]) / 100
+        flake.BorderSizePixel = 0
+        flake.ZIndex = zIndex
+        flake.Parent = parent
+        Instance.new("UICorner", flake).CornerRadius = UDim.new(1, 0)
+
+        table.insert(snowflakes, {
+            frame = flake,
+            startX = startX,
+            speed = math.random(speedRange[1], speedRange[2]) / 100,
+            sway = math.random(-20, 20) / 10000,
+            phase = math.random() * math.pi * 2,
+        })
+    end
+end
+
+createSnow(SnowBack,  90, {2, 4}, {25, 55}, {12, 30}, 2)
+createSnow(SnowFront, 45, {4, 8}, {10, 40}, {30, 70}, 10)
+
+local snowConn = RunService.RenderStepped:Connect(function(dt)
+    for _, d in ipairs(snowflakes) do
+        if d.frame and d.frame.Parent then
+            local pos = d.frame.Position
+            local newY = pos.Y.Scale + d.speed * dt
+            if newY > 1.05 then
+                newY = -0.05
+                d.startX = math.random()
+                d.frame.Position = UDim2.new(d.startX, 0, newY, 0)
+            else
+                local sx = d.startX + math.sin(tick() * 1.2 + d.phase) * d.sway
+                d.frame.Position = UDim2.new(sx, 0, newY, 0)
+            end
+        end
+    end
+end)
+
+-- ===== 玻璃面板外发光 =====
+local GlowLayerInner = Instance.new("Frame")
+GlowLayerInner.Size = UDim2.new(0, 456, 0, 336)
+GlowLayerInner.Position = UDim2.new(0.5, 0, 0.5, 0)
+GlowLayerInner.AnchorPoint = Vector2.new(0.5, 0.5)
+GlowLayerInner.BackgroundTransparency = 1
+GlowLayerInner.BorderSizePixel = 0
+GlowLayerInner.ZIndex = 4
+GlowLayerInner.Parent = LoadingGui
+Instance.new("UICorner", GlowLayerInner).CornerRadius = UDim.new(0, 32)
+
+local GlowInnerStroke = Instance.new("UIStroke")
+GlowInnerStroke.Thickness = 10
+GlowInnerStroke.Color = Color3.fromRGB(210, 230, 255)
+GlowInnerStroke.Transparency = 0.65
+GlowInnerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+GlowInnerStroke.Parent = GlowLayerInner
+
+local GlowInnerGrad = Instance.new("UIGradient")
+GlowInnerGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(220, 235, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 210, 255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(220, 235, 255)),
+})
+GlowInnerGrad.Rotation = 90
+GlowInnerGrad.Parent = GlowInnerStroke
+
+local GlowLayerOuter = Instance.new("Frame")
+GlowLayerOuter.Size = UDim2.new(0, 476, 0, 356)
+GlowLayerOuter.Position = UDim2.new(0.5, 0, 0.5, 0)
+GlowLayerOuter.AnchorPoint = Vector2.new(0.5, 0.5)
+GlowLayerOuter.BackgroundTransparency = 1
+GlowLayerOuter.BorderSizePixel = 0
+GlowLayerOuter.ZIndex = 3
+GlowLayerOuter.Parent = LoadingGui
+Instance.new("UICorner", GlowLayerOuter).CornerRadius = UDim.new(0, 38)
+
+local GlowOuterStroke = Instance.new("UIStroke")
+GlowOuterStroke.Thickness = 16
+GlowOuterStroke.Color = Color3.fromRGB(180, 210, 250)
+GlowOuterStroke.Transparency = 0.88
+GlowOuterStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+GlowOuterStroke.Parent = GlowLayerOuter
+
+local GlowOuterGrad = Instance.new("UIGradient")
+GlowOuterGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(200, 220, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(160, 195, 245)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(200, 220, 255)),
+})
+GlowOuterGrad.Rotation = 90
+GlowOuterGrad.Parent = GlowOuterStroke
+
+task.spawn(function()
+    while GlowLayerInner and GlowLayerInner.Parent do
+        TweenService:Create(GlowInnerStroke, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Transparency = 0.8,
+        }):Play()
+        TweenService:Create(GlowOuterStroke, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Transparency = 0.95,
+        }):Play()
+        task.wait(2)
+        if not GlowLayerInner or not GlowLayerInner.Parent then break end
+        TweenService:Create(GlowInnerStroke, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Transparency = 0.6,
+        }):Play()
+        TweenService:Create(GlowOuterStroke, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Transparency = 0.85,
+        }):Play()
+        task.wait(2)
+    end
+end)
+
+-- ===== 玻璃面板 =====
+local GlassPanel = Instance.new("Frame")
+GlassPanel.Size = UDim2.new(0, 440, 0, 320)
+GlassPanel.Position = UDim2.new(0.5, 0, 0.5, 20)
+GlassPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+GlassPanel.BackgroundColor3 = Color3.fromRGB(200, 220, 250)
+GlassPanel.BackgroundTransparency = 0.82
+GlassPanel.BorderSizePixel = 0
+GlassPanel.ZIndex = 5
+GlassPanel.Parent = LoadingGui
+Instance.new("UICorner", GlassPanel).CornerRadius = UDim.new(0, 28)
+
+local PanelGrad = Instance.new("UIGradient")
+PanelGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,    Color3.fromRGB(210, 225, 255)),
+    ColorSequenceKeypoint.new(0.35, Color3.fromRGB(185, 205, 250)),
+    ColorSequenceKeypoint.new(0.7,  Color3.fromRGB(170, 195, 245)),
+    ColorSequenceKeypoint.new(1,    Color3.fromRGB(150, 180, 235)),
+})
+PanelGrad.Rotation = 135
+PanelGrad.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.72),
+    NumberSequenceKeypoint.new(0.35, 0.78),
+    NumberSequenceKeypoint.new(0.7, 0.84),
+    NumberSequenceKeypoint.new(1, 0.88),
+})
+PanelGrad.Parent = GlassPanel
+
+local TopLight = Instance.new("Frame")
+TopLight.Size = UDim2.new(1, 0, 0, 140)
+TopLight.Position = UDim2.new(0.5, 0, 0, 0)
+TopLight.AnchorPoint = Vector2.new(0.5, 0)
+TopLight.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TopLight.BackgroundTransparency = 1
+TopLight.BorderSizePixel = 0
+TopLight.ZIndex = 6
+TopLight.Parent = GlassPanel
+Instance.new("UICorner", TopLight).CornerRadius = UDim.new(0, 28)
+
+local TopLightGrad = Instance.new("UIGradient")
+TopLightGrad.Color = ColorSequence.new(Color3.fromRGB(240, 245, 255))
+TopLightGrad.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.7),
+    NumberSequenceKeypoint.new(1, 1),
+})
+TopLightGrad.Rotation = 90
+TopLightGrad.Parent = TopLight
+
+local GlassStroke = Instance.new("UIStroke")
+GlassStroke.Thickness = 1.5
+GlassStroke.Color = Color3.fromRGB(255, 255, 255)
+GlassStroke.Transparency = 0.35
+GlassStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+GlassStroke.Parent = GlassPanel
+
+local StrokeGrad = Instance.new("UIGradient")
+StrokeGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(210, 230, 255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(255, 255, 255)),
+})
+StrokeGrad.Rotation = 90
+StrokeGrad.Parent = GlassStroke
+
+-- ===== 图标区 =====
+local IconWrap = Instance.new("Frame")
+IconWrap.Size = UDim2.new(0, 130, 0, 130)
+IconWrap.Position = UDim2.new(0.5, 0, 0, 20)
+IconWrap.AnchorPoint = Vector2.new(0.5, 0)
+IconWrap.BackgroundTransparency = 1
+IconWrap.ZIndex = 7
+IconWrap.Parent = GlassPanel
+
+local IconGlow = Instance.new("Frame")
+IconGlow.Size = UDim2.new(0, 110, 0, 110)
+IconGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
+IconGlow.AnchorPoint = Vector2.new(0.5, 0.5)
+IconGlow.BackgroundColor3 = Color3.fromRGB(220, 235, 255)
+IconGlow.BackgroundTransparency = 0.8
+IconGlow.BorderSizePixel = 0
+IconGlow.ZIndex = 7
+IconGlow.Parent = IconWrap
+Instance.new("UICorner", IconGlow).CornerRadius = UDim.new(1, 0)
+
+task.spawn(function()
+    while IconGlow and IconGlow.Parent do
+        TweenService:Create(IconGlow, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Size = UDim2.new(0, 122, 0, 122),
+            BackgroundTransparency = 0.9,
+        }):Play()
+        task.wait(1.6)
+        if not IconGlow or not IconGlow.Parent then break end
+        TweenService:Create(IconGlow, TweenInfo.new(1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Size = UDim2.new(0, 105, 0, 105),
+            BackgroundTransparency = 0.75,
+        }):Play()
+        task.wait(1.6)
+    end
+end)
 
 local Splash = Instance.new("ImageLabel")
-Splash.Size = UDim2.new(0, 300, 0, 300)
-Splash.Position = UDim2.new(0.5, 0, 0.5, -60)
+Splash.Size = UDim2.new(0, 78, 0, 78)
+Splash.Position = UDim2.new(0.5, 0, 0.5, 0)
 Splash.AnchorPoint = Vector2.new(0.5, 0.5)
 Splash.BackgroundTransparency = 1
 Splash.Image = "rbxassetid://81780048927282"
 Splash.ScaleType = Enum.ScaleType.Fit
-Splash.ZIndex = 2
-Splash.Parent = LoadingGui
+Splash.ZIndex = 9
+Splash.Parent = IconWrap
 
+local SplashCorner = Instance.new("UICorner")
+SplashCorner.CornerRadius = UDim.new(0, 18)
+SplashCorner.Parent = Splash
+
+local SplashStroke = Instance.new("UIStroke")
+SplashStroke.Thickness = 1.2
+SplashStroke.Color = Color3.fromRGB(255, 255, 255)
+SplashStroke.Transparency = 0.35
+SplashStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+SplashStroke.Parent = Splash
+
+-- ===== 标题 =====
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 50)
-Title.Position = UDim2.new(0.5, 0, 0.5, 110)
-Title.AnchorPoint = Vector2.new(0.5, 0.5)
+Title.Size = UDim2.new(1, 0, 0, 34)
+Title.Position = UDim2.new(0.5, 0, 0, 155)
+Title.AnchorPoint = Vector2.new(0.5, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "龙卷脚本"
-Title.TextColor3 = Color3.fromHex("A3D9B6")
-Title.TextStrokeTransparency = 0.3
-Title.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextStrokeTransparency = 0.8
+Title.TextStrokeColor3 = Color3.fromRGB(60, 100, 180)
 Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 42
-Title.ZIndex = 6
-Title.Parent = LoadingGui
+Title.TextSize = 24
+Title.ZIndex = 7
+Title.Parent = GlassPanel
 
+-- ===== 状态提示胶囊 =====
+local StatusBox = Instance.new("Frame")
+StatusBox.Size = UDim2.new(0, 360, 0, 28)
+StatusBox.Position = UDim2.new(0.5, 0, 0, 197)
+StatusBox.AnchorPoint = Vector2.new(0.5, 0)
+StatusBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+StatusBox.BackgroundTransparency = 0.9
+StatusBox.BorderSizePixel = 0
+StatusBox.ZIndex = 7
+StatusBox.Parent = GlassPanel
+Instance.new("UICorner", StatusBox).CornerRadius = UDim.new(1, 0)
+
+local StatusStroke = Instance.new("UIStroke")
+StatusStroke.Thickness = 1
+StatusStroke.Color = Color3.fromRGB(255, 255, 255)
+StatusStroke.Transparency = 0.6
+StatusStroke.Parent = StatusBox
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, -20, 1, 0)
+StatusText.Position = UDim2.new(0.5, 0, 0.5, 0)
+StatusText.AnchorPoint = Vector2.new(0.5, 0.5)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "正在加载 UI库  /  准备读取缓存和网络资源"
+StatusText.TextColor3 = Color3.fromRGB(245, 248, 255)
+StatusText.TextStrokeTransparency = 0.85
+StatusText.Font = Enum.Font.Gotham
+StatusText.TextSize = 11
+StatusText.ZIndex = 8
+StatusText.Parent = StatusBox
+
+-- ===== Owner 文字 =====
+local OwnerText = Instance.new("TextLabel")
+OwnerText.Size = UDim2.new(1, 0, 0, 20)
+OwnerText.Position = UDim2.new(0.5, 0, 0, 232)
+OwnerText.AnchorPoint = Vector2.new(0.5, 0)
+OwnerText.BackgroundTransparency = 1
+OwnerText.Text = "Owner CypTec"
+OwnerText.TextColor3 = Color3.fromRGB(255, 255, 255)
+OwnerText.TextTransparency = 0.4
+OwnerText.TextStrokeTransparency = 0.85
+OwnerText.Font = Enum.Font.GothamMedium
+OwnerText.TextSize = 12
+OwnerText.ZIndex = 7
+OwnerText.Parent = GlassPanel
+
+-- ===== 进度条 =====
 local BarBg = Instance.new("Frame")
-BarBg.Size = UDim2.new(0, 260, 0, 6)
-BarBg.Position = UDim2.new(0.5, 0, 0.5, 155)
-BarBg.AnchorPoint = Vector2.new(0.5, 0.5)
-BarBg.BackgroundColor3 = Color3.fromHex("1E2E23")
+BarBg.Size = UDim2.new(0, 260, 0, 4)
+BarBg.Position = UDim2.new(0.5, -20, 0, 265)
+BarBg.AnchorPoint = Vector2.new(0.5, 0)
+BarBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+BarBg.BackgroundTransparency = 0.75
 BarBg.BorderSizePixel = 0
-BarBg.ZIndex = 6
-BarBg.Parent = LoadingGui
+BarBg.ZIndex = 7
+BarBg.Parent = GlassPanel
 Instance.new("UICorner", BarBg).CornerRadius = UDim.new(1, 0)
 
 local BarFill = Instance.new("Frame")
 BarFill.Size = UDim2.new(0, 0, 1, 0)
-BarFill.BackgroundColor3 = Color3.fromHex("A3D9B6")
+BarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 BarFill.BorderSizePixel = 0
-BarFill.ZIndex = 7
+BarFill.ZIndex = 8
 BarFill.Parent = BarBg
 Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
+BarFill.ClipsDescendants = true
+
+local BarShine = Instance.new("Frame")
+BarShine.Size = UDim2.new(0, 40, 1, 0)
+BarShine.Position = UDim2.new(-1, 0, 0, 0)
+BarShine.BackgroundColor3 = Color3.fromRGB(210, 230, 255)
+BarShine.BackgroundTransparency = 0.2
+BarShine.BorderSizePixel = 0
+BarShine.ZIndex = 9
+BarShine.Parent = BarFill
+Instance.new("UICorner", BarShine).CornerRadius = UDim.new(1, 0)
+
+task.spawn(function()
+    while BarShine and BarShine.Parent do
+        BarShine.Position = UDim2.new(-1, 0, 0, 0)
+        TweenService:Create(BarShine, TweenInfo.new(1.8, Enum.EasingStyle.Linear), {
+            Position = UDim2.new(1, 0, 0, 0),
+        }):Play()
+        task.wait(1.8)
+    end
+end)
 
 local Percent = Instance.new("TextLabel")
-Percent.Size = UDim2.new(0, 60, 0, 18)
-Percent.Position = UDim2.new(0.5, 145, 0.5, 155)
-Percent.AnchorPoint = Vector2.new(0, 0.5)
+Percent.Size = UDim2.new(0, 40, 0, 14)
+Percent.Position = UDim2.new(0.5, 120, 0, 260)
+Percent.AnchorPoint = Vector2.new(0, 0)
 Percent.BackgroundTransparency = 1
 Percent.Text = "0%"
-Percent.TextColor3 = Color3.fromHex("A3D9B6")
-Percent.Font = Enum.Font.GothamBold
-Percent.TextSize = 14
+Percent.TextColor3 = Color3.fromRGB(255, 255, 255)
+Percent.TextTransparency = 0.25
+Percent.TextStrokeTransparency = 0.85
+Percent.Font = Enum.Font.GothamMedium
+Percent.TextSize = 11
 Percent.TextXAlignment = Enum.TextXAlignment.Left
-Percent.ZIndex = 6
-Percent.Parent = LoadingGui
+Percent.ZIndex = 7
+Percent.Parent = GlassPanel
 
-local Subtitle = Instance.new("TextLabel")
-Subtitle.Size = UDim2.new(1, 0, 0, 20)
-Subtitle.Position = UDim2.new(0.5, 0, 0.5, 190)
-Subtitle.AnchorPoint = Vector2.new(0.5, 0.5)
-Subtitle.BackgroundTransparency = 1
-Subtitle.Text = "正在加载..."
-Subtitle.TextColor3 = Color3.fromHex("FFFFFF")
-Subtitle.TextStrokeTransparency = 0.5
-Subtitle.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-Subtitle.Font = Enum.Font.Gotham
-Subtitle.TextSize = 14
-Subtitle.ZIndex = 6
-Subtitle.Parent = LoadingGui
+-- ===== 底部状态胶囊 =====
+local LoadingBadge = Instance.new("Frame")
+LoadingBadge.Size = UDim2.new(0, 110, 0, 26)
+LoadingBadge.Position = UDim2.new(0.5, 0, 1, -30)
+LoadingBadge.AnchorPoint = Vector2.new(0.5, 1)
+LoadingBadge.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+LoadingBadge.BackgroundTransparency = 0.9
+LoadingBadge.BorderSizePixel = 0
+LoadingBadge.ZIndex = 7
+LoadingBadge.Parent = GlassPanel
+Instance.new("UICorner", LoadingBadge).CornerRadius = UDim.new(1, 0)
 
-TweenService:Create(Title, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { TextTransparency = 0.2 }):Play()
+local BadgeStroke = Instance.new("UIStroke")
+BadgeStroke.Thickness = 1
+BadgeStroke.Color = Color3.fromRGB(255, 255, 255)
+BadgeStroke.Transparency = 0.7
+BadgeStroke.Parent = LoadingBadge
 
+local Dot = Instance.new("Frame")
+Dot.Size = UDim2.new(0, 6, 0, 6)
+Dot.Position = UDim2.new(0, 14, 0.5, 0)
+Dot.AnchorPoint = Vector2.new(0, 0.5)
+Dot.BackgroundColor3 = Color3.fromRGB(210, 230, 255)
+Dot.BorderSizePixel = 0
+Dot.ZIndex = 8
+Dot.Parent = LoadingBadge
+Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
+
+task.spawn(function()
+    while Dot and Dot.Parent do
+        TweenService:Create(Dot, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            BackgroundTransparency = 0.7,
+            Size = UDim2.new(0, 8, 0, 8),
+        }):Play()
+        task.wait(0.7)
+        if not Dot or not Dot.Parent then break end
+        TweenService:Create(Dot, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            BackgroundTransparency = 0,
+            Size = UDim2.new(0, 6, 0, 6),
+        }):Play()
+        task.wait(0.7)
+    end
+end)
+
+local BadgeText = Instance.new("TextLabel")
+BadgeText.Size = UDim2.new(1, -20, 1, 0)
+BadgeText.Position = UDim2.new(0, 20, 0, 0)
+BadgeText.BackgroundTransparency = 1
+BadgeText.Text = "加载中"
+BadgeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+BadgeText.TextTransparency = 0.15
+BadgeText.TextStrokeTransparency = 0.85
+BadgeText.Font = Enum.Font.GothamMedium
+BadgeText.TextSize = 12
+BadgeText.TextXAlignment = Enum.TextXAlignment.Center
+BadgeText.ZIndex = 8
+BadgeText.Parent = LoadingBadge
+
+-- ===== 面板浮现动画 =====
+GlassPanel.Position = UDim2.new(0.5, 0, 0.5, 40)
+GlassPanel.BackgroundTransparency = 1
+GlowLayerInner.Position = UDim2.new(0.5, 0, 0.5, 40)
+GlowLayerOuter.Position = UDim2.new(0.5, 0, 0.5, 40)
+
+TweenService:Create(GlassPanel, TweenInfo.new(0.7, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    BackgroundTransparency = 0.82,
+}):Play()
+TweenService:Create(GlowLayerInner, TweenInfo.new(0.7, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+}):Play()
+TweenService:Create(GlowLayerOuter, TweenInfo.new(0.7, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+}):Play()
+
+-- ===== 进度条动画 =====
 local barTween = TweenService:Create(BarFill, TweenInfo.new(15, Enum.EasingStyle.Linear), { Size = UDim2.new(0.85, 0, 1, 0) })
 barTween:Play()
 
@@ -121,20 +494,59 @@ local currentScale = BarFill.Size.X.Scale
 local remaining = 1 - currentScale
 local fillTime = math.clamp(remaining * 1.2, 0.3, 0.8)
 TweenService:Create(BarFill, TweenInfo.new(fillTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 1, 0) }):Play()
-Subtitle.Text = "加载完成！"
+StatusText.Text = "加载完成"
 task.wait(fillTime + 0.3)
 
-TweenService:Create(Dim,    TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
-TweenService:Create(Splash, TweenInfo.new(0.6), { ImageTransparency = 1 }):Play()
-TweenService:Create(Title,  TweenInfo.new(0.6), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-TweenService:Create(Subtitle, TweenInfo.new(0.6), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-TweenService:Create(BarBg,   TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
-TweenService:Create(BarFill, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
-TweenService:Create(Percent, TweenInfo.new(0.6), { TextTransparency = 1 }):Play()
+TweenService:Create(BlurEffect, TweenInfo.new(0.6, Enum.EasingStyle.Quad), { Size = 0 }):Play()
+task.delay(0.8, function()
+    if BlurEffect then BlurEffect:Destroy() end
+end)
+
+local fadeOutList = {
+    {GlassPanel, "BackgroundTransparency"},
+    {GlassStroke, "Transparency"},
+    {GlowInnerStroke, "Transparency"},
+    {GlowOuterStroke, "Transparency"},
+    {TopLight, "BackgroundTransparency"},
+    {Splash, "ImageTransparency"},
+    {SplashStroke, "Transparency"},
+    {IconGlow, "BackgroundTransparency"},
+    {Title, "TextTransparency"},
+    {StatusBox, "BackgroundTransparency"},
+    {StatusStroke, "Transparency"},
+    {StatusText, "TextTransparency"},
+    {OwnerText, "TextTransparency"},
+    {BarBg, "BackgroundTransparency"},
+    {BarFill, "BackgroundTransparency"},
+    {Percent, "TextTransparency"},
+    {LoadingBadge, "BackgroundTransparency"},
+    {BadgeStroke, "Transparency"},
+    {BadgeText, "TextTransparency"},
+    {Dot, "BackgroundTransparency"},
+}
+
+for _, item in ipairs(fadeOutList) do
+    local obj, prop = item[1], item[2]
+    if obj and obj.Parent then
+        TweenService:Create(obj, TweenInfo.new(0.6), { [prop] = 1 }):Play()
+    end
+end
+
 task.wait(0.6)
+if snowConn then snowConn:Disconnect() end
 LoadingGui:Destroy()
+-- ============================================================
+-- 加载 WindUI
+-- ============================================================
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
-
+WindUI:AddTheme({
+    Name        = "GreenHairTheme",
+    Accent      = "2E4A3D",
+    Outline     = "3A6B4D",
+    Text        = "FFFFFF",
+    Placeholder = "A3D9B6",
+})
 -- ============================================================
 -- 基础服务
 -- ============================================================
@@ -1356,9 +1768,9 @@ end
 -- 主窗口
 -- ============================================================
 local Window = WindUI:CreateWindow({
-    Title = "龙卷脚本",
+    Title = "龙卷",
     Icon = "door-open",
-    Author = "作者CypTec",
+    Author = "作者 CypTec",
     Folder = "LongJuan",
     Size = UDim2.fromOffset(580, 460),
     Transparent = true,
@@ -1372,7 +1784,7 @@ WindUI:SetTheme("GreenHairTheme")
 
 Window:EditOpenButton({
     Title = "",
-    Icon = "menu",
+    Icon = "rbxassetid://90581686679780",
     CornerRadius = UDim.new(0, 16),
     StrokeThickness = 2,
     Color = ColorSequence.new(Color3.fromHex("3A6B4D"), Color3.fromHex("A3D9B6")),
